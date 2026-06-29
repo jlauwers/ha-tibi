@@ -1,0 +1,12 @@
+{
+  "domain": "tibi",
+  "name": "TIBI Quotas Conteneurs",
+  "version": "1.0.0",
+  "documentation": "https://github.com/jlauwers/ha-tibi",
+  "issue_tracker": "https://github.com/jlauwers/ha-tibi/issues",
+  "codeowners": ["@jlauwers"],
+  "dependencies": [],
+  "requirements": ["beautifulsoup4==4.12.3"],
+  "iot_class": "cloud_polling",
+  "config_flow": true
+}
