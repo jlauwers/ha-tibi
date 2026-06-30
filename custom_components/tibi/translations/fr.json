@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "Connexion TIBI",
-        "description": "Entrez vos identifiants du portail [tibi.monconteneur.be]({url})",
+        "description": "Entrez vos identifiants du portail tibi.monconteneur.be",
         "data": {
           "username": "Nom d'utilisateur",
           "password": "Mot de passe",
@@ -12,7 +12,7 @@
       }
     },
     "error": {
-      "invalid_auth": "Identifiants incorrects, vérifiez votre nom d'utilisateur et mot de passe.",
+      "invalid_auth": "Identifiants incorrects.",
       "cannot_connect": "Impossible de se connecter au serveur TIBI.",
       "unknown": "Erreur inattendue."
     },
