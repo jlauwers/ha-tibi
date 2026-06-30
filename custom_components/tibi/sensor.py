@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import Any
 
 from homeassistant.components.sensor import (
@@ -46,7 +47,7 @@ SENSOR_TYPES: tuple[TibiSensorEntityDescription, ...] = (
         name="Tout Venant – Levées",
         icon="mdi:trash-can-outline",
         native_unit_of_measurement=UNIT_COLLECTIONS,
-        state_class=SensorStateClass.TOTAL_INCREASING,
+        state_class=SensorStateClass.TOTAL,          # TOTAL + last_reset gère le reset annuel
         fraction=FRACTION_TOUT_VENANT,
         value_key="total_vidanges",
     ),
@@ -55,7 +56,7 @@ SENSOR_TYPES: tuple[TibiSensorEntityDescription, ...] = (
         name="Tout Venant – Kilos",
         icon="mdi:weight-kilogram",
         native_unit_of_measurement=UNIT_KG,
-        state_class=SensorStateClass.TOTAL_INCREASING,
+        state_class=SensorStateClass.TOTAL,
         fraction=FRACTION_TOUT_VENANT,
         value_key="total_kilos",
     ),
@@ -65,7 +66,7 @@ SENSOR_TYPES: tuple[TibiSensorEntityDescription, ...] = (
         name="Organique – Levées",
         icon="mdi:leaf",
         native_unit_of_measurement=UNIT_COLLECTIONS,
-        state_class=SensorStateClass.TOTAL_INCREASING,
+        state_class=SensorStateClass.TOTAL,
         fraction=FRACTION_ORGANIQUE,
         value_key="total_vidanges",
     ),
@@ -74,7 +75,7 @@ SENSOR_TYPES: tuple[TibiSensorEntityDescription, ...] = (
         name="Organique – Kilos",
         icon="mdi:weight-kilogram",
         native_unit_of_measurement=UNIT_KG,
-        state_class=SensorStateClass.TOTAL_INCREASING,
+        state_class=SensorStateClass.TOTAL,
         fraction=FRACTION_ORGANIQUE,
         value_key="total_kilos",
     ),
@@ -88,11 +89,9 @@ async def async_setup_entry(
 ) -> None:
     """Créé les entités sensor TIBI."""
     coordinator: TibiCoordinator = hass.data[DOMAIN][entry.entry_id]
-
-    entities: list[TibiSensor] = [
+    async_add_entities(
         TibiSensor(coordinator, description) for description in SENSOR_TYPES
-    ]
-    async_add_entities(entities)
+    )
 
 
 class TibiSensor(CoordinatorEntity[TibiCoordinator], SensorEntity):
@@ -118,12 +117,23 @@ class TibiSensor(CoordinatorEntity[TibiCoordinator], SensorEntity):
         }
 
     @property
+    def last_reset(self) -> datetime:
+        """
+        Retourne le 1er janvier de l'année en cours (timezone-aware).
+        HA utilise cette valeur pour détecter les resets annuels
+        sans générer d'erreurs quand les compteurs repassent à 0.
+        """
+        now = datetime.now(tz=timezone.utc)
+        return now.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
+
+    @property
     def native_value(self) -> float | int | None:
         """Valeur principale du sensor."""
         if not self.coordinator.data:
             return None
-        fractions = self.coordinator.data.get("fractions", {})
-        fraction_data = fractions.get(self.entity_description.fraction)
+        fraction_data = self.coordinator.data.get("fractions", {}).get(
+            self.entity_description.fraction
+        )
         if not fraction_data:
             return None
         return fraction_data.get(self.entity_description.value_key)
@@ -135,9 +145,8 @@ class TibiSensor(CoordinatorEntity[TibiCoordinator], SensorEntity):
         if not self.coordinator.data:
             return attrs
 
-        data = self.coordinator.data
-        fractions = data.get("fractions", {})
-        fraction_data = fractions.get(self.entity_description.fraction)
+        data          = self.coordinator.data
+        fraction_data = data.get("fractions", {}).get(self.entity_description.fraction)
 
         if fraction_data:
             attrs[ATTR_STATUS]  = fraction_data.get("statut")
@@ -149,11 +158,8 @@ class TibiSensor(CoordinatorEntity[TibiCoordinator], SensorEntity):
                 last = collections[-1]
                 attrs[ATTR_LAST_DATE] = last.get("date")
                 attrs[ATTR_LAST_KG]   = last.get("kilos")
-
-                # Toutes les collectes de l'année pour historique
-                attrs["collectes"] = [
-                    {"date": c["date"], "kg": c["kilos"]}
-                    for c in collections
+                attrs["collectes"]    = [
+                    {"date": c["date"], "kg": c["kilos"]} for c in collections
                 ]
 
         attrs[ATTR_YEAR]      = data.get("year")
