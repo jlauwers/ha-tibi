@@ -1,0 +1,23 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connexion TIBI",
+        "description": "Entrez vos identifiants du portail [tibi.monconteneur.be](https://tibi.monconteneur.be)",
+        "data": {
+          "username": "Nom d'utilisateur",
+          "password": "Mot de passe",
+          "scan_interval": "Intervalle de mise à jour (secondes)"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Identifiants incorrects.",
+      "cannot_connect": "Impossible de se connecter au serveur TIBI.",
+      "unknown": "Erreur inattendue."
+    },
+    "abort": {
+      "already_configured": "Ce compte TIBI est déjà configuré."
+    }
+  }
+}
