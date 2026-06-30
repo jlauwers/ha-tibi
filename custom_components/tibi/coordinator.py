@@ -264,6 +264,9 @@ class TibiCoordinator(DataUpdateCoordinator):
         result["address"] = f"{street} {nr}, {zp} {city}".strip()
 
         # ── Produits (conteneurs) ──────────────────────────────────────
+        # Un ménage peut avoir plusieurs conteneurs actifs de même fraction
+        # (ex: déménagement partiel, remplacement de puce).
+        # On accumule toutes les collectes au lieu d'écraser.
         products = card.get("products") or []
         for product in products:
             # Ignore les conteneurs inactifs
@@ -277,28 +280,40 @@ class TibiCoordinator(DataUpdateCoordinator):
                 continue
 
             frac = result["fractions"][frac_key]
-            frac["nr_puce"]      = product.get("chip_trimmed") or product.get("chip")
-            frac["statut"]       = product.get("status") or product.get("state")
-            frac["depuis"]       = product.get("status_since") or product.get("chip_since")
+
+            # Infos puce : on garde la première puce active trouvée
+            if frac["nr_puce"] is None:
+                frac["nr_puce"] = product.get("chip_trimmed") or product.get("chip")
+                frac["statut"]  = product.get("status") or product.get("state")
+                frac["depuis"]  = product.get("status_since") or product.get("chip_since")
 
             emptyings = product.get("emptyings") or {}
 
-            # emptyings est un dict  {"YYYY-MM-DD": {date_time, weight, amount}}
+            # emptyings est un dict {"YYYY-MM-DD": {date_time, weight, amount}}
             if isinstance(emptyings, dict) and emptyings:
-                collections = []
                 for date_key in sorted(emptyings.keys()):
-                    e = emptyings[date_key]
+                    e  = emptyings[date_key]
                     kg = _to_float(e.get("weight", 0))
-                    collections.append({
-                        "date":    date_key,
-                        "vidanges": 1,      # 1 date = 1 passage (confirmé vs UI)
-                        "kilos":   kg,
-                    })
+                    # Fusionne les collectes du même jour si plusieurs conteneurs
+                    existing = next(
+                        (c for c in frac["collections"] if c["date"] == date_key), None
+                    )
+                    if existing:
+                        existing["kilos"] = round(existing["kilos"] + kg, 2)
+                    else:
+                        frac["collections"].append({
+                            "date":    date_key,
+                            "vidanges": 1,
+                            "kilos":   kg,
+                        })
 
-                frac["collections"]    = collections
-                # vidanges = nombre de dates (len), confirmé vs affichage UI
-                frac["total_vidanges"] = len(collections)
-                frac["total_kilos"]    = round(sum(c["kilos"] for c in collections), 2)
+        # Tri et totaux après accumulation de tous les produits
+        for frac in result["fractions"].values():
+            frac["collections"].sort(key=lambda c: c["date"])
+            frac["total_vidanges"] = len(frac["collections"])
+            frac["total_kilos"]    = round(
+                sum(c["kilos"] for c in frac["collections"]), 2
+            )
 
         _LOGGER.debug("TIBI parsé: TV=%s vidanges / %s kg | OM=%s vidanges / %s kg",
                       result["fractions"][FRACTION_TOUT_VENANT]["total_vidanges"],
